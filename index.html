@@ -8,9 +8,23 @@
   <meta name="apple-mobile-web-app-title" content="かしかり帳">
   <meta name="theme-color" content="#f2f2f7">
   <title>かしかり帳</title>
+
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon.png">
   <link rel="stylesheet" href="style.css">
+
+  <script>
+    (function () {
+      if (location.pathname.endsWith('/index.html')) {
+        const newUrl =
+          location.origin +
+          location.pathname.replace(/\/index\.html$/, '/') +
+          location.search +
+          location.hash;
+        history.replaceState(null, '', newUrl);
+      }
+    })();
+  </script>
 </head>
 <body>
   <div id="app"></div>
