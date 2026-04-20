@@ -141,7 +141,8 @@ body {
   text-align: right; background: transparent; flex: 1;
   font-family: inherit;
 }
-.form-row textarea { text-align: left; resize: none; min-height: 60px; }
+.form-row textarea { text-align: left; resize: none; min-height: 60px; padding-top: 2px; line-height: 1.5; }
+.form-row:has(textarea) { align-items: flex-start; padding-top: 14px; }
 .form-row input[type="date"] { color: #007aff; }
 
 .seg-control { display: flex; background: #e5e5ea; border-radius: 9px; padding: 2px; margin-bottom: 16px; }
