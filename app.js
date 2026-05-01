@@ -204,10 +204,10 @@ function renderPeople(search = '') {
   <div class="navbar">
     <span class="navbar-title">人物管理</span>
   </div>
-  <div class="search-bar">🔍 <input type="text" placeholder="名前で検索..." id="people-search" value="${search}" oninput="Router.replace('people',{});document.getElementById('app').innerHTML=renderPeople(this.value);bindEvents('people')">
+  <div class="search-bar">🔍 <input type="text" placeholder="名前で検索..." id="people-search" value="${search}" oninput="updatePeopleList(this.value)">
   </div>
   <div class="scroll-content" style="padding-top:0">
-    ${list.length ? `<div class="card">${rows}</div>` : '<div class="empty"><div class="empty-icon">👥</div>人物が登録されていません</div>'}
+    <div id="people-list">${list.length ? `<div class="card">${rows}</div>` : '<div class="empty"><div class="empty-icon">👥</div>人物が登録されていません</div>'}</div>
   </div>
   <button class="fab" onclick="showAddPerson()">＋</button>
   ${tabBarHTML('people')}
@@ -264,11 +264,10 @@ function renderHistory(params = {}) {
   return `
   <div class="navbar"><span class="navbar-title">取引履歴</span></div>
   <div class="filter-row">${chips}</div>
-  <div class="search-bar">🔍 <input type="text" placeholder="タイトル・人物で検索..." id="history-search" value="${search}"
-    oninput="Router.replace('history',{filter:'${filter}',search:this.value})">
+  <div class="search-bar">🔍 <input type="text" placeholder="タイトル・人物で検索..." id="history-search" value="${search}" oninput="updateHistoryList(this.value,'${filter}')">
   </div>
   <div class="scroll-content" style="padding-top:0">
-    ${content || '<div class="empty"><div class="empty-icon">📋</div>記録がありません</div>'}
+    <div id="history-list">${content || '<div class="empty"><div class="empty-icon">📋</div>記録がありません</div>'}</div>
   </div>
   ${tabBarHTML('history')}`;
 }
@@ -625,7 +624,80 @@ Store.load();
 Router.go('home');
 
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/kashikari/sw.js');
+  navigator.serviceWorker.register('/sw.js');
+}
+
+// ── Search partial updates ────────────────────────────
+function updatePeopleList(search) {
+  const list = search ? Store.persons.filter(p => p.name.includes(search)) : Store.persons;
+  const rows = list.map(p => {
+    const idx = Store.personIndex(p.id);
+    const bal = Store.balanceFor(p.id);
+    const balColor = bal > 0 ? 'lent' : bal < 0 ? 'borrowed' : '';
+    const balLabel = bal > 0 ? '受け取るべき' : bal < 0 ? '返すべき' : '清算済み';
+    const balSign = bal > 0 ? '-' : bal < 0 ? '+' : '±';
+    return `
+    <div class="row-item" onclick="Router.go('person',{id:'${p.id}'})">
+      <div class="avatar ${avClass(idx)}">${initials(p.name)}</div>
+      <div class="item-info">
+        <div class="item-name">${p.name}</div>
+        ${p.note ? `<div class="item-sub">${p.note}</div>` : ''}
+      </div>
+      <div class="amount-col">
+        <div class="amount-val ${balColor}">${balSign}${yen(Math.abs(bal))}</div>
+        <div class="amount-label">${balLabel}</div>
+      </div>
+      <span class="chevron">›</span>
+    </div>`;
+  }).join('');
+
+  const container = document.getElementById('people-list');
+  if (container) {
+    container.innerHTML = list.length
+      ? `<div class="card">${rows}</div>`
+      : '<div class="empty"><div class="empty-icon">👥</div>見つかりません</div>';
+  }
+}
+
+function updateHistoryList(search, filter) {
+  let txs = [...Store.transactions];
+  if (filter === 'lent') txs = txs.filter(t => t.type === 'lent');
+  else if (filter === 'borrowed') txs = txs.filter(t => t.type === 'borrowed');
+  else if (filter === 'pending') txs = txs.filter(t => t.status !== 'repaid');
+  else if (filter === 'repaid') txs = txs.filter(t => t.status === 'repaid');
+  if (search) txs = txs.filter(t =>
+    t.title.includes(search) || t.description.includes(search) ||
+    (Store.getPerson(t.personId)?.name || '').includes(search)
+  );
+  txs.sort((a, b) => b.dateMs - a.dateMs);
+
+  const groups = {};
+  txs.forEach(tx => {
+    const d = new Date(tx.dateMs);
+    const key = `${d.getFullYear()}年${d.getMonth()+1}月`;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(tx);
   });
+
+  const content = Object.entries(groups).map(([month, items]) => {
+    const rows = items.map(tx => {
+      const p = Store.getPerson(tx.personId); if (!p) return '';
+      const idx = Store.personIndex(tx.personId);
+      return `
+      <div class="row-item" onclick="Router.go('transaction',{id:'${tx.id}'})">
+        <div class="avatar ${avClass(idx)}" style="width:36px;height:36px;font-size:12px">${initials(p.name)}</div>
+        <div class="item-info">
+          <div class="item-name">${tx.title}</div>
+          <div class="item-sub">${p.name} · ${fmtDate(tx.dateMs)}</div>
+        </div>
+        ${amountHTML(tx)}
+      </div>`;
+    }).join('');
+    return `<div class="section-label">${month}</div><div class="card">${rows}</div>`;
+  }).join('');
+
+  const container = document.getElementById('history-list');
+  if (container) {
+    container.innerHTML = content || '<div class="empty"><div class="empty-icon">📋</div>記録がありません</div>';
+  }
 }
