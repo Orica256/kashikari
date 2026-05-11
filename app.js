@@ -63,11 +63,19 @@ const Store = {
 };
 
 // ── Helpers ───────────────────────────────────────────
+function escapeHTML(str) {
+  return String(str === null || str === undefined ? '' : str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
 function yen(n) { return '¥' + Math.round(n).toLocaleString('ja-JP'); }
 function fmtDate(ms) { const d = new Date(ms); return `${d.getMonth()+1}月${d.getDate()}日`; }
 function fmtDateFull(ms) { const d = new Date(ms); return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`; }
 function fmtDateInput(ms) { return new Date(ms).toISOString().slice(0, 10); }
-function initials(name) { const p = name.trim().split(/\s+/); return p.length >= 2 ? p[0][0] + p[1][0] : name.slice(0, 2); }
+function initials(name) { const s = escapeHTML(name); const p = s.trim().split(/\s+/); return p.length >= 2 ? p[0][0] + p[1][0] : s.slice(0, 2); }
 function avClass(idx) { return `av${idx % 5}`; }
 
 function badgeHTML(tx) {
@@ -150,8 +158,8 @@ function renderHome() {
     <div class="row-item" onclick="Router.go('transaction',{id:'${tx.id}'})">
       <div class="avatar ${avClass(idx)}">${initials(p.name)}</div>
       <div class="item-info">
-        <div class="item-name">${p.name}</div>
-        <div class="item-sub">${tx.title}</div>
+        <div class="item-name">${escapeHTML(p.name)}</div>
+        <div class="item-sub">${escapeHTML(tx.title)}</div>
         ${badgeHTML(tx)}
       </div>
       ${amountHTML(tx)}
@@ -193,8 +201,8 @@ function renderPeople(search = '') {
     <div class="row-item" onclick="Router.go('person',{id:'${p.id}'})">
       <div class="avatar ${avClass(idx)}">${initials(p.name)}</div>
       <div class="item-info">
-        <div class="item-name">${p.name}</div>
-        ${p.note ? `<div class="item-sub">${p.note}</div>` : ''}
+        <div class="item-name">${escapeHTML(p.name)}</div>
+        ${p.note ? `<div class="item-sub">${escapeHTML(p.note)}</div>` : ''}
       </div>
       <div class="amount-col">
         <div class="amount-val ${balColor}">${balSign}${yen(Math.abs(bal))}</div>
@@ -256,8 +264,8 @@ function renderHistory(params = {}) {
       <div class="row-item" onclick="Router.go('transaction',{id:'${tx.id}'})">
         <div class="avatar ${avClass(idx)}" style="width:36px;height:36px;font-size:12px">${initials(p.name)}</div>
         <div class="item-info">
-          <div class="item-name">${tx.title}</div>
-          <div class="item-sub">${p.name} · ${fmtDate(tx.dateMs)}</div>
+          <div class="item-name">${escapeHTML(tx.title)}</div>
+          <div class="item-sub">${escapeHTML(p.name)} · ${fmtDate(tx.dateMs)}</div>
         </div>
         ${amountHTML(tx)}
       </div>`;
@@ -288,7 +296,7 @@ function renderPerson(id) {
   const txRows = txs.map(tx => `
     <div class="row-item" onclick="Router.go('transaction',{id:'${tx.id}'})">
       <div class="item-info">
-        <div class="item-name">${tx.title}</div>
+        <div class="item-name">${escapeHTML(tx.title)}</div>
         <div class="item-sub">${fmtDate(tx.dateMs)}</div>
       </div>
       ${amountHTML(tx)}
@@ -298,7 +306,7 @@ function renderPerson(id) {
   return `
   <div class="navbar">
     <button class="navbar-btn navbar-back" onclick="Router.back()">‹ 戻る</button>
-    <span class="navbar-title">${p.name}</span>
+    <span class="navbar-title">${escapeHTML(p.name)}</span>
     <button class="navbar-btn" onclick="showEditPerson('${id}')">編集</button>
   </div>
   <div class="scroll-content">
@@ -306,8 +314,8 @@ function renderPerson(id) {
       <div style="display:flex;align-items:center;gap:14px;padding:14px">
         <div class="avatar ${avClass(idx)}" style="width:56px;height:56px;font-size:18px">${initials(p.name)}</div>
         <div>
-          <div style="font-size:18px;font-weight:700">${p.name}</div>
-          ${p.note ? `<div style="font-size:13px;color:#8e8e93;margin-top:2px">${p.note}</div>` : ''}
+          <div style="font-size:18px;font-weight:700">${escapeHTML(p.name)}</div>
+          ${p.note ? `<div style="font-size:13px;color:#8e8e93;margin-top:2px">${escapeHTML(p.note)}</div>` : ''}
         </div>
       </div>
     </div>
@@ -338,7 +346,7 @@ function renderTransaction(id) {
   return `
   <div class="navbar">
     <button class="navbar-btn navbar-back" onclick="Router.back()">‹ 戻る</button>
-    <span class="navbar-title">${tx.title}</span>
+    <span class="navbar-title">${escapeHTML(tx.title)}</span>
     <button class="navbar-btn" onclick="showEditTx('${id}')">編集</button>
   </div>
   <div class="scroll-content">
@@ -358,8 +366,8 @@ function renderTransaction(id) {
       </div>
     </div>
     <div class="card" style="margin-bottom:10px">
-      <div class="detail-row"><span class="detail-key">タイトル</span><span class="detail-val">${tx.title}</span></div>
-      ${tx.description ? `<div class="detail-row"><span class="detail-key">説明</span><span class="detail-val">${tx.description}</span></div>` : ''}
+      <div class="detail-row"><span class="detail-key">タイトル</span><span class="detail-val">${escapeHTML(tx.title)}</span></div>
+      ${tx.description ? `<div class="detail-row"><span class="detail-key">説明</span><span class="detail-val">${escapeHTML(tx.description)}</span></div>` : ''}
       <div class="detail-row"><span class="detail-key">日付</span><span class="detail-val">${fmtDateFull(tx.dateMs)}</span></div>
       ${tx.dueDateMs ? `<div class="detail-row"><span class="detail-key">返済期限</span><span class="detail-val">${fmtDateFull(tx.dueDateMs)}</span></div>` : ''}
       <div class="detail-row"><span class="detail-key">状態</span><span class="detail-val">${statusLabel}</span></div>
@@ -386,7 +394,7 @@ function closeModalOutside(e) { if (e.target.classList.contains('overlay')) clos
 
 function showAddTx(prePersonId = '') {
   const personOptions = Store.persons.map(p =>
-    `<option value="${p.id}" ${p.id === prePersonId ? 'selected' : ''}>${p.name}</option>`
+    `<option value="${p.id}" ${p.id === prePersonId ? 'selected' : ''}>${escapeHTML(p.name)}</option>`
   ).join('');
 
   showModal(`
@@ -505,8 +513,8 @@ function showEditPerson(id) {
     <div class="sheet-body">
       <div class="form-section">
         <div class="form-card">
-          <div class="form-row"><label>氏名</label><input type="text" id="edit-name" value="${p.name}"></div>
-          <div class="form-row"><label>メモ</label><input type="text" id="edit-note" value="${p.note}"></div>
+          <div class="form-row"><label>氏名</label><input type="text" id="edit-name" value="${escapeHTML(p.name)}"></div>
+          <div class="form-row"><label>メモ</label><input type="text" id="edit-note" value="${escapeHTML(p.note)}"></div>
         </div>
       </div>
     </div>
@@ -545,8 +553,8 @@ function showEditTx(id) {
       </div>
       <div class="form-card" style="margin-bottom:16px">
         <div class="form-row"><label>金額</label><input type="number" id="edit-amount" value="${tx.amount}" inputmode="numeric"></div>
-        <div class="form-row"><label>タイトル</label><input type="text" id="edit-title" value="${tx.title}"></div>
-        <div class="form-row"><label>説明</label><textarea id="edit-desc">${tx.description}</textarea></div>
+        <div class="form-row"><label>タイトル</label><input type="text" id="edit-title" value="${escapeHTML(tx.title)}"></div>
+        <div class="form-row"><label>説明</label><textarea id="edit-desc">${escapeHTML(tx.description)}</textarea></div>
         <div class="form-row"><label>取引日</label><input type="date" id="edit-date" value="${fmtDateInput(tx.dateMs)}"></div>
         <div class="form-row"><label>返済期限</label><input type="date" id="edit-due" value="${tx.dueDateMs ? fmtDateInput(tx.dueDateMs) : ''}"></div>
       </div>
@@ -644,8 +652,8 @@ function updatePeopleList(search) {
     <div class="row-item" onclick="Router.go('person',{id:'${p.id}'})">
       <div class="avatar ${avClass(idx)}">${initials(p.name)}</div>
       <div class="item-info">
-        <div class="item-name">${p.name}</div>
-        ${p.note ? `<div class="item-sub">${p.note}</div>` : ''}
+        <div class="item-name">${escapeHTML(p.name)}</div>
+        ${p.note ? `<div class="item-sub">${escapeHTML(p.note)}</div>` : ''}
       </div>
       <div class="amount-col">
         <div class="amount-val ${balColor}">${balSign}${yen(Math.abs(bal))}</div>
@@ -691,8 +699,8 @@ function updateHistoryList(search, filter) {
       <div class="row-item" onclick="Router.go('transaction',{id:'${tx.id}'})">
         <div class="avatar ${avClass(idx)}" style="width:36px;height:36px;font-size:12px">${initials(p.name)}</div>
         <div class="item-info">
-          <div class="item-name">${tx.title}</div>
-          <div class="item-sub">${p.name} · ${fmtDate(tx.dateMs)}</div>
+          <div class="item-name">${escapeHTML(tx.title)}</div>
+          <div class="item-sub">${escapeHTML(p.name)} · ${fmtDate(tx.dateMs)}</div>
         </div>
         ${amountHTML(tx)}
       </div>`;
