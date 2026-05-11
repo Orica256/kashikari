@@ -113,6 +113,7 @@ function render(view, params = {}) {
     case 'history': app.innerHTML = renderHistory(params); break;
     case 'person': app.innerHTML = renderPerson(params.id); break;
     case 'transaction': app.innerHTML = renderTransaction(params.id); break;
+    case 'settings': app.innerHTML = renderSettings(); break;
   }
   bindEvents(view, params);
 }
@@ -129,6 +130,9 @@ function tabBarHTML(active) {
     </button>
     <button class="tab-item ${active==='history'?'active':''}" onclick="Router.go('history')">
       <span class="tab-icon">📋</span><span>履歴</span>
+    </button>
+    <button class="tab-item ${active==='settings'?'active':''}" onclick="Router.go('settings')">
+      <span class="tab-icon">⚙️</span><span>設定</span>
     </button>
   </nav>`;
 }
@@ -700,4 +704,159 @@ function updateHistoryList(search, filter) {
   if (container) {
     container.innerHTML = content || '<div class="empty"><div class="empty-icon">📋</div>記録がありません</div>';
   }
+}
+
+// ── Settings Screen ───────────────────────────────────
+function renderSettings() {
+  const personCount = Store.persons.length;
+  const txCount = Store.transactions.length;
+  return `
+  <div class="navbar"><span class="navbar-title">設定</span></div>
+  <div class="scroll-content">
+
+    <div class="section-label">データ管理</div>
+    <div class="card" style="margin-bottom:16px">
+      <div class="detail-row">
+        <span class="detail-key">登録人物数</span>
+        <span class="detail-val">${personCount}人</span>
+      </div>
+      <div class="detail-row">
+        <span class="detail-key">取引記録数</span>
+        <span class="detail-val">${txCount}件</span>
+      </div>
+    </div>
+
+    <div class="section-label">エクスポート</div>
+    <div class="card" style="margin-bottom:16px">
+      <div class="action-row" onclick="exportJSON()">
+        <span style="color:#007aff;font-size:15px;font-weight:500">📦 JSONでエクスポート（バックアップ用）</span>
+      </div>
+      <div class="action-row" onclick="exportCSV()">
+        <span style="color:#007aff;font-size:15px;font-weight:500">📊 CSVでエクスポート（Excel用）</span>
+      </div>
+    </div>
+
+    <div class="section-label">インポート</div>
+    <div class="card" style="margin-bottom:16px">
+      <div class="action-row" onclick="document.getElementById('import-file').click()">
+        <span style="color:#007aff;font-size:15px;font-weight:500">📂 JSONファイルからインポート</span>
+      </div>
+      <input type="file" id="import-file" accept=".json" style="display:none" onchange="importJSON(this)">
+      <div style="padding:10px 14px;font-size:12px;color:#8e8e93;line-height:1.6">
+        ※ インポートすると現在のデータに追加されます。<br>上書きしたい場合は先にデータを削除してください。
+      </div>
+    </div>
+
+    <div class="section-label">危険な操作</div>
+    <div class="card" style="margin-bottom:16px">
+      <div class="action-row" onclick="deleteAllData()">
+        <span style="color:#ff3b30;font-size:15px;font-weight:500">🗑 すべてのデータを削除</span>
+      </div>
+    </div>
+
+  </div>
+  ${tabBarHTML('settings')}`;
+}
+
+// ── Export JSON ───────────────────────────────────────
+function exportJSON() {
+  const data = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    persons: Store.persons,
+    transactions: Store.transactions,
+  };
+  const json = JSON.stringify(data, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const date = new Date().toISOString().slice(0, 10);
+  a.href = url;
+  a.download = `kashikari_backup_${date}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── Export CSV ────────────────────────────────────────
+function exportCSV() {
+  const header = ['取引ID', '相手', '種別', '金額', '残額', 'タイトル', '説明', '日付', '返済期限', '状態', '返済済み額'];
+  const rows = Store.transactions.map(tx => {
+    const p = Store.getPerson(tx.personId);
+    const statusMap = { pending: '未返済', partial: '一部返済', repaid: '返済済み' };
+    return [
+      tx.id,
+      p ? p.name : '不明',
+      tx.type === 'lent' ? '貸した' : '借りた',
+      tx.amount,
+      Store.remaining(tx),
+      tx.title,
+      tx.description,
+      fmtDateFull(tx.dateMs),
+      tx.dueDateMs ? fmtDateFull(tx.dueDateMs) : '',
+      statusMap[tx.status] || tx.status,
+      tx.repaidAmount,
+    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
+  });
+
+  // BOM付きUTF-8でExcelが文字化けしないようにする
+  const bom = '\uFEFF';
+  const csv = bom + [header.join(','), ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  const date = new Date().toISOString().slice(0, 10);
+  a.href = url;
+  a.download = `kashikari_${date}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── Import JSON ───────────────────────────────────────
+function importJSON(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data.persons || !data.transactions) {
+        alert('ファイルの形式が正しくありません。');
+        return;
+      }
+      // 既存IDと重複しないものだけ追加
+      const existingPersonIds = new Set(Store.persons.map(p => p.id));
+      const existingTxIds = new Set(Store.transactions.map(t => t.id));
+      let addedPersons = 0, addedTxs = 0;
+      data.persons.forEach(p => {
+        if (!existingPersonIds.has(p.id)) {
+          Store.persons.push(p);
+          addedPersons++;
+        }
+      });
+      data.transactions.forEach(t => {
+        if (!existingTxIds.has(t.id)) {
+          Store.transactions.push(t);
+          addedTxs++;
+        }
+      });
+      Store.save();
+      alert(`インポート完了！\n人物: ${addedPersons}件追加\n取引: ${addedTxs}件追加`);
+      Router.replace('settings');
+    } catch(err) {
+      alert('ファイルの読み込みに失敗しました。JSONファイルを選択してください。');
+    }
+  };
+  reader.readAsText(file);
+  input.value = '';
+}
+
+// ── Delete All ────────────────────────────────────────
+function deleteAllData() {
+  if (!confirm('すべてのデータを削除します。この操作は取り消せません。\n本当に削除しますか？')) return;
+  if (!confirm('本当によろしいですか？\nすべての人物・取引データが消えます。')) return;
+  Store.persons = [];
+  Store.transactions = [];
+  Store.save();
+  alert('削除しました。');
+  Router.replace('settings');
 }

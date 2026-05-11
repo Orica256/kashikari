@@ -1,11 +1,9 @@
-const CACHE_NAME = 'kashikari-v2';
+const CACHE_NAME = 'kashikari-v1';
 const ASSETS = [
-  '/kashikari/',
-  '/kashikari/index.html',
-  '/kashikari/manifest.json',
-  '/kashikari/app.js',
-  '/kashikari/style.css',
-  '/kashikari/icon.png',
+  '/index.html',
+  '/manifest.json',
+  '/app.js',
+  '/style.css',
 ];
 
 self.addEventListener('install', e => {
@@ -25,11 +23,7 @@ self.addEventListener('activate', e => {
 });
 
 self.addEventListener('fetch', e => {
-  if (e.request.method !== 'GET') return;
-
   e.respondWith(
-    caches.match(e.request).then(cached => {
-      return cached || fetch(e.request).catch(() => caches.match('/kashikari/'));
-    })
+    caches.match(e.request).then(cached => cached || fetch(e.request))
   );
 });
