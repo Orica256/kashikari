@@ -24,9 +24,9 @@ const Store = {
       { id: 'p3', name: '佐藤 洋平', note: '' },
     ];
     this.transactions = [
-      { id: 't1', personId: 'p1', type: 'lent', amount: 15000, title: '飲み会代', description: '4月の歓迎会', dateMs: now - 6*day, dueDateMs: now + 18*day, status: 'pending', repaidAmount: 0 },
-      { id: 't2', personId: 'p2', type: 'lent', amount: 8500, title: '交通費立替', description: '出張費用', dateMs: now - 8*day, dueDateMs: null, status: 'repaid', repaidAmount: 8500 },
-      { id: 't3', personId: 'p3', type: 'borrowed', amount: 12000, title: '昼食代', description: 'ランチ', dateMs: now - 10*day, dueDateMs: now + 5*day, status: 'pending', repaidAmount: 0 },
+      { id: 't1', personId: 'p1', type: 'lent', amount: 15000, title: '飲み会代', description: '4月の歓迎会', dateMs: now - 6*day, dueDateMs: now + 18*day, status: 'pending', repaidAmount: 0, images: [] },
+      { id: 't2', personId: 'p2', type: 'lent', amount: 8500, title: '交通費立替', description: '出張費用', dateMs: now - 8*day, dueDateMs: null, status: 'repaid', repaidAmount: 8500, images: [] },
+      { id: 't3', personId: 'p3', type: 'borrowed', amount: 12000, title: '昼食代', description: 'ランチ', dateMs: now - 10*day, dueDateMs: now + 5*day, status: 'pending', repaidAmount: 0, images: [] },
     ];
     this.save();
   },
@@ -57,7 +57,7 @@ const Store = {
   updatePerson(p) { const i = this.persons.findIndex(x => x.id === p.id); if (i >= 0) { this.persons[i] = p; this.save(); } },
   deletePerson(id) { this.persons = this.persons.filter(p => p.id !== id); this.transactions = this.transactions.filter(t => t.personId !== id); this.save(); },
 
-  addTransaction(t) { this.transactions.push({ ...t, id: this.uid() }); this.save(); },
+  addTransaction(t) { this.transactions.push({ ...t, id: this.uid(), images: t.images || [] }); this.save(); },
   updateTransaction(t) { const i = this.transactions.findIndex(x => x.id === t.id); if (i >= 0) { this.transactions[i] = t; this.save(); } },
   deleteTransaction(id) { this.transactions = this.transactions.filter(t => t.id !== id); this.save(); },
 };
@@ -373,6 +373,11 @@ function renderTransaction(id) {
       <div class="detail-row"><span class="detail-key">状態</span><span class="detail-val">${statusLabel}</span></div>
       ${tx.repaidAmount > 0 ? `<div class="detail-row"><span class="detail-key">返済済み</span><span class="detail-val">${yen(tx.repaidAmount)}</span></div>` : ''}
     </div>
+    <div class="section-label" style="margin-top:8px">添付写真</div>
+    <div class="card" style="margin-bottom:10px" id="images-section">
+      ${renderImagesHTML(tx)}
+    </div>
+
     ${tx.status !== 'repaid' ? `
     <div class="card" style="margin-bottom:10px">
       <div class="action-row" onclick="showRepayment('${id}')"><span style="color:#007aff;font-size:15px;font-weight:500">返済を記録する</span></div>
@@ -867,4 +872,115 @@ function deleteAllData() {
   Store.save();
   alert('削除しました。');
   Router.replace('settings');
+}
+
+// ── Images ────────────────────────────────────────────
+function renderImagesHTML(tx) {
+  const images = tx.images || [];
+  const canAdd = images.length < 3;
+
+  const thumbs = images.map((img, i) => `
+    <div style="position:relative;display:inline-block;margin:4px">
+      <img src="${img}" onclick="showImageFull('${tx.id}',${i})"
+        style="width:90px;height:90px;object-fit:cover;border-radius:8px;cursor:pointer;display:block">
+      <button onclick="deleteImage('${tx.id}',${i})"
+        style="position:absolute;top:-6px;right:-6px;width:22px;height:22px;border-radius:11px;
+        background:#ff3b30;color:#fff;border:none;font-size:14px;line-height:1;cursor:pointer;
+        display:flex;align-items:center;justify-content:center;font-weight:700">×</button>
+    </div>`).join('');
+
+  const addBtn = canAdd ? `
+    <div style="display:inline-block;margin:4px;vertical-align:top">
+      <label for="photo-input-${tx.id}" style="
+        width:90px;height:90px;border-radius:8px;border:2px dashed #c6c6c8;
+        display:flex;flex-direction:column;align-items:center;justify-content:center;
+        cursor:pointer;color:#8e8e93;font-size:11px;gap:4px">
+        <span style="font-size:28px">📷</span>
+        <span>追加</span>
+      </label>
+      <input type="file" id="photo-input-${tx.id}" accept="image/*" style="display:none"
+        onchange="addImage('${tx.id}',this)">
+    </div>` : '';
+
+  return `
+  <div style="padding:12px;display:flex;flex-wrap:wrap;align-items:flex-start;min-height:60px">
+    ${thumbs}
+    ${addBtn}
+    ${images.length === 0 && !canAdd ? '<span style="color:#8e8e93;font-size:13px;padding:8px">写真がありません</span>' : ''}
+  </div>
+  ${images.length === 3 ? '<div style="padding:0 12px 10px;font-size:12px;color:#8e8e93">最大3枚まで添付できます</div>' : ''}`;
+}
+
+function addImage(txId, input) {
+  const file = input.files[0];
+  if (!file) return;
+
+  // 5MB制限
+  if (file.size > 5 * 1024 * 1024) {
+    alert('ファイルサイズは5MB以下にしてください。');
+    input.value = '';
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    // 画像をリサイズしてBase64保存
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const MAX = 1200;
+      let w = img.width, h = img.height;
+      if (w > MAX || h > MAX) {
+        if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+        else { w = Math.round(w * MAX / h); h = MAX; }
+      }
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      const base64 = canvas.toDataURL('image/jpeg', 0.75);
+
+      const tx = Store.transactions.find(t => t.id === txId);
+      if (!tx) return;
+      if (!tx.images) tx.images = [];
+      if (tx.images.length >= 3) { alert('写真は最大3枚です。'); return; }
+      tx.images.push(base64);
+      Store.updateTransaction(tx);
+
+      // 写真セクションだけ部分更新
+      const section = document.getElementById('images-section');
+      if (section) section.innerHTML = renderImagesHTML(tx);
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+  input.value = '';
+}
+
+function deleteImage(txId, index) {
+  if (!confirm('この写真を削除しますか？')) return;
+  const tx = Store.transactions.find(t => t.id === txId);
+  if (!tx || !tx.images) return;
+  tx.images.splice(index, 1);
+  Store.updateTransaction(tx);
+  const section = document.getElementById('images-section');
+  if (section) section.innerHTML = renderImagesHTML(tx);
+}
+
+function showImageFull(txId, index) {
+  const tx = Store.transactions.find(t => t.id === txId);
+  if (!tx || !tx.images || !tx.images[index]) return;
+  const src = tx.images[index];
+  document.getElementById('modal').innerHTML = `
+  <div class="overlay" onclick="closeModal()" style="align-items:center;justify-content:center;background:rgba(0,0,0,0.85)">
+    <div onclick="event.stopPropagation()" style="position:relative;max-width:95vw;max-height:85vh">
+      <img src="${src}" style="max-width:95vw;max-height:85vh;object-fit:contain;border-radius:8px;display:block">
+      <button onclick="closeModal()"
+        style="position:absolute;top:-14px;right:-14px;width:30px;height:30px;border-radius:15px;
+        background:#fff;color:#1c1c1e;border:none;font-size:18px;font-weight:700;cursor:pointer;
+        display:flex;align-items:center;justify-content:center">×</button>
+      <a href="${src}" download="kashikari_photo.jpg"
+        style="position:absolute;bottom:-40px;left:50%;transform:translateX(-50%);
+        color:#fff;font-size:13px;text-decoration:none;background:rgba(0,0,0,0.5);
+        padding:6px 14px;border-radius:20px">📥 保存</a>
+    </div>
+  </div>`;
 }
