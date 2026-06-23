@@ -636,12 +636,56 @@ function deleteTx(id) {
 
 function bindEvents(view, params) {}
 
+// ── Theme ─────────────────────────────────────────────
+const Theme = {
+  // 保存される値: 'system' | 'light' | 'dark'（既定は 'system'）
+  get pref() { return localStorage.getItem('theme') || 'system'; },
+
+  // システム設定がダークかどうか
+  systemPrefersDark() {
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  },
+
+  // 実際に表示するモードを解決
+  resolved() {
+    const p = this.pref;
+    if (p === 'dark') return 'dark';
+    if (p === 'light') return 'light';
+    return this.systemPrefersDark() ? 'dark' : 'light';
+  },
+
+  // <html> に属性を反映 + ステータスバー色を更新
+  apply() {
+    const dark = this.resolved() === 'dark';
+    if (dark) document.documentElement.setAttribute('data-theme', 'dark');
+    else document.documentElement.removeAttribute('data-theme');
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', dark ? '#000000' : '#f2f2f7');
+  },
+
+  set(pref) {
+    localStorage.setItem('theme', pref);
+    this.apply();
+  },
+
+  init() {
+    this.apply();
+    // 'system' 選択時に、端末の昼夜切替へ追従する
+    if (window.matchMedia) {
+      window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+        if (this.pref === 'system') this.apply();
+      });
+    }
+  }
+};
+
 // ── Init ──────────────────────────────────────────────
+Theme.init();
 Store.load();
 Router.go('home');
 
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js');
+  navigator.serviceWorker.register('sw.js');
 }
 
 // ── Search partial updates ────────────────────────────
@@ -727,6 +771,13 @@ function renderSettings() {
   <div class="navbar"><span class="navbar-title">設定</span></div>
   <div class="scroll-content">
 
+    <div class="section-label">外観</div>
+    <div class="seg-control">
+      <button class="seg-btn ${Theme.pref==='system'?'active':''}" onclick="setTheme('system')">システム</button>
+      <button class="seg-btn ${Theme.pref==='light'?'active':''}" onclick="setTheme('light')">ライト</button>
+      <button class="seg-btn ${Theme.pref==='dark'?'active':''}" onclick="setTheme('dark')">ダーク</button>
+    </div>
+
     <div class="section-label">データ管理</div>
     <div class="card" style="margin-bottom:16px">
       <div class="detail-row">
@@ -769,6 +820,12 @@ function renderSettings() {
 
   </div>
   ${tabBarHTML('settings')}`;
+}
+
+// ── Theme switch ──────────────────────────────────────
+function setTheme(pref) {
+  Theme.set(pref);
+  Router.replace('settings');
 }
 
 // ── Export JSON ───────────────────────────────────────

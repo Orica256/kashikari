@@ -1,9 +1,10 @@
-const CACHE_NAME = 'kashikari-v1';
+const CACHE_NAME = 'kashikari-v2';
 const ASSETS = [
-  '/index.html',
-  '/manifest.json',
-  '/app.js',
-  '/style.css',
+  './',
+  './index.html',
+  './manifest.json',
+  './app.js',
+  './style.css',
 ];
 
 self.addEventListener('install', e => {

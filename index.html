@@ -14,6 +14,19 @@
   <link rel="stylesheet" href="style.css">
 
   <script>
+    // テーマを描画前に適用（ちらつき防止）
+    (function () {
+      try {
+        var pref = localStorage.getItem('theme') || 'system';
+        var dark = pref === 'dark' ||
+          (pref === 'system' && window.matchMedia &&
+           window.matchMedia('(prefers-color-scheme: dark)').matches);
+        if (dark) document.documentElement.setAttribute('data-theme', 'dark');
+      } catch (e) {}
+    })();
+  </script>
+
+  <script>
     (function () {
       if (location.pathname.endsWith('/index.html')) {
         const newUrl =
